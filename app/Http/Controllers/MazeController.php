@@ -7,15 +7,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
-class MazeController extends Controller
-{
-    public function __construct()
-    {
+class MazeController extends Controller {
+    public function __construct() {
         $this->middleware('auth:sanctum');
     }
 
-    public function save(Request $request)
-    {
+    public function save(Request $request) {
         $array = ['error' => ''];
 
         $userId = Auth::id();
@@ -46,14 +43,14 @@ class MazeController extends Controller
             $array['error'] = 'The grid size must be at least 1x1.';
             return $array;
         }
-        
+
         $maze = new Maze();
         $maze->user_id = $userId;
         $maze->entrance = $data['entrance'];
         $maze->grid_size = $data['gridSize'];
         $maze->walls = $data['walls'];
         $maze->save();
-        
+
         $array['data'] = ['message' => 'Your Maze has been sucessfully created!'];
         $array['data'] = ['success' => true];
 
@@ -82,11 +79,9 @@ class MazeController extends Controller
         $array['mazes'] = $data;
 
         return $array;
-
     }
 
-    public function solution(Request $request, $mazeId)
-    {
+    public function solution(Request $request, $mazeId) {
         $array = ['error' => ''];
 
         $userId = Auth::id();
@@ -96,6 +91,11 @@ class MazeController extends Controller
         ]);
 
         $maze = Maze::where('user_id', '=', $userId)->where('id', '=', $mazeId)->first();
+
+        if (!$maze) {
+            $array['error'] = 'Maze ID not found.';
+            return $array;
+        }
 
         $position = $maze['entrance'];
         $rc = str_split($position);
@@ -133,7 +133,6 @@ class MazeController extends Controller
                             if (str_contains($position, $hexit) || str_contains($position, $wexit)) {
 
                                 $array['path'] = $path;
-                                $array['walls'] = $walls;
 
                                 return $array;
                             }
@@ -147,7 +146,6 @@ class MazeController extends Controller
 
                                 if (str_contains($position, $hexit) || str_contains($position, $wexit)) {
                                     $array['path'] = $path;
-                                    $array['walls'] = $walls;
                                 }
 
                                 return $array;
@@ -160,14 +158,33 @@ class MazeController extends Controller
             }
         }
 
+
         $array['path'] = $path;
-        $array['walls'] = $walls;
+        $size = sizeof($path);
+
+        if ($data['steps'] == 'max') {
+            $final_path = $this->doRefinePath($path, $hexit, $wexit, $size);
+            $size = sizeof($path);
+            $array['path'] = $final_path;
+        }
+
+
+        if ($maze['entrance'] == $path[$size - 1]) {
+            $array['error'] = '1 A Solution has not been found.';
+            unset($array['path']);
+            return $array;
+        }
+
+        if (!(str_contains($path[$size - 1], $hexit) || str_contains($path[$size - 1], $wexit))) {
+            $array['error'] = '2 A Solution has not been found.';
+            unset($array['path']);
+            return $array;
+        }
 
         return $array;
     }
 
-    public function doMove($row, $col, $walls, $path, $hexit, $wexit, $m)
-    {
+    public function doMove($row, $col, $walls, $path, $hexit, $wexit, $m) {
 
         $doMove = false;
 
@@ -226,5 +243,21 @@ class MazeController extends Controller
         }
 
         return [$r, $c, $new_pos, true];
+    }
+
+    /**
+     * Check and correct the max size of a path
+     */
+
+    public function doRefinePath($path, $hexit, $wexit, $pathSize) {
+
+        for ($i = $pathSize - 1; $i > 0; $i--) {
+            if (str_contains($path[$i], $hexit) || str_contains($path[$i], $wexit)) {
+                return $path;
+            } else {
+                array_pop($path);
+            }
+        }
+        return $path;
     }
 }
